@@ -41,6 +41,8 @@ d = np.array(d, dtype=float)
 
 c = float(input("\nEnter learning rate c: "))
 epochs = int(input("Enter number of epochs to train: "))
+error_threshold_input = input("Enter error threshold: ").strip()
+error_threshold = float(error_threshold_input) if error_threshold_input else 0.001
 
 for epoch in range(1, epochs + 1):
     print(f"\n--- Epoch {epoch} ---")
@@ -90,6 +92,17 @@ for epoch in range(1, epochs + 1):
 
     avg_error = total_epoch_error / n
     print(f"\nEpoch {epoch} Average Error: {round(avg_error, 6)}")
+
+    if avg_error <= error_threshold:
+        print("\n================================")
+        print(f"Error threshold reached ({round(avg_error, 6)} <= {error_threshold}) at epoch {epoch}")
+        print("Training Completed")
+        print("================================")
+        break
+else:
+    print("\n================================")
+    print("Maximum epochs reached")
+    print("================================")
 
 print("\nFinal Input-to-Hidden Weights (V):")
 print(np.round(v, 4))
