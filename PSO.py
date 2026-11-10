@@ -1,72 +1,71 @@
-import random
 import math
+import random
 
-def objective_function(x):
-    return x * math.sin(10 * math.pi * x) + 2.0
+SWARM_SIZE = 20
+ITERATIONS = 10
+W = 0.5
+C1 = 1.5
+C2 = 1.5
+X_MIN = 0.0
+X_MAX = 1.0
+V_MIN = -0.1
+V_MAX = 0.1
 
-NUM_PARTICLES = 20
-ITERATIONS = 5
-C1 = 2.0 
-C2 = 2.0 
-X_MIN = -1.0
-X_MAX = 2.0
-V_MIN = -0.5  
-V_MAX = 0.5
 
-class Particle:
-    def __init__(self):
-        self.position = random.uniform(X_MIN, X_MAX)
-        self.velocity = random.uniform(V_MIN, V_MAX)
-        
-        self.pbest_position = self.position
-        self.pbest_value = objective_function(self.position)
+def fitness(x):
+    return x * math.sin(10 * math.pi * x) + 2
 
-def pso_maximize():
-    swarm = [Particle() for _ in range(NUM_PARTICLES)]
-    gbest_position = swarm[0].position
-    gbest_value = swarm[0].pbest_value
-    
-    for particle in swarm:
-        if particle.pbest_value > gbest_value:
-            gbest_value = particle.pbest_value
-            gbest_position = particle.position
 
-    print("INITIAL SWARM STATE: ")
-    print(f"Initial Global Best: x = {gbest_position:.4f}, f(x) = {gbest_value:.4f}")
+particles = [random.uniform(X_MIN, X_MAX) for _ in range(SWARM_SIZE)]
+velocities = [random.uniform(V_MIN, V_MAX) for _ in range(SWARM_SIZE)]
 
-    for t in range(ITERATIONS):
-        print(f"\nITERATION {t + 1} : ")
-        
-        for particle in swarm:
-            r1 = random.random()
-            r2 = random.random()
-            
-            cognitive_component = C1 * r1 * (particle.pbest_position - particle.position)
-            social_component = C2 * r2 * (gbest_position - particle.position)
-            particle.velocity = particle.velocity + cognitive_component + social_component
-        
-            particle.velocity = max(min(particle.velocity, V_MAX), V_MIN)
-            particle.position = particle.position + particle.velocity
-            particle.position = max(min(particle.position, X_MAX), X_MIN)
-            
-            current_fitness = objective_function(particle.position)
-            
-            if current_fitness > particle.pbest_value:
-                particle.pbest_value = current_fitness
-                particle.pbest_position = particle.position
-                
-            if current_fitness > gbest_value:
-                gbest_value = current_fitness
-                gbest_position = particle.position
-                
-        for i, particle in enumerate(swarm):
-            print(f"Particle {i + 1:02d}: Particle Position x_t = {particle.position: .6f}, Local Best x = {particle.pbest_position:.6f}, f(x) = {particle.pbest_value:.6f}")
-            
-        print(f"Iteration {t + 1} Global Best: x = {gbest_position:.6f}, f(x) = {gbest_value:.6f}")
+pbest = list(particles)
+pbest_fitness = [fitness(x) for x in pbest]
 
-    print("\n          FINAL BEST SOLUTION            ")
-    print(f"Best x Value       : {gbest_position:.6f}")
-    print(f"Max Fitness (f(x)) : {gbest_value:.6f}")
+gbest = pbest[pbest_fitness.index(max(pbest_fitness))]
+gbest_fitness = max(pbest_fitness)
 
-if __name__ == "__main__":
-    pso_maximize()
+print("INITIAL SWARM")
+for i in range(SWARM_SIZE):
+    print(
+        f"Particle {i + 1}: x = {round(particles[i], 6)}, Fitness = {round(pbest_fitness[i], 4)}"
+    )
+
+for iteration in range(1, ITERATIONS + 1):
+    print(f"\n========== ITERATION {iteration} ==========")
+
+    for i in range(SWARM_SIZE):
+        r1 = random.random()
+        r2 = random.random()
+
+        velocities[i] = (
+            W * velocities[i]
+            + C1 * r1 * (pbest[i] - particles[i])
+            + C2 * r2 * (gbest - particles[i])
+        )
+        velocities[i] = max(V_MIN, min(V_MAX, velocities[i]))
+
+        particles[i] += velocities[i]
+        particles[i] = max(X_MIN, min(X_MAX, particles[i]))
+
+        current_fit = fitness(particles[i])
+
+        if current_fit > pbest_fitness[i]:
+            pbest[i] = particles[i]
+            pbest_fitness[i] = current_fit
+
+            if current_fit > gbest_fitness:
+                gbest = particles[i]
+                gbest_fitness = current_fit
+
+        print(
+            f"Particle {i + 1}: x = {round(particles[i], 6)}, v = {round(velocities[i], 6)}, Fitness = {round(current_fit, 6)}"
+        )
+
+    print(f"Current Best x: {round(gbest, 6)}")
+    print(f"Current Best Fitness: {round(gbest_fitness, 6)}")
+
+print("\n========== FINAL RESULT ==========")
+print("Best particle (x):", gbest)
+print("Best x:", round(gbest, 6))
+print("Maximum fitness:", gbest_fitness)

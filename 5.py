@@ -1,132 +1,152 @@
 import random
 import math
 
-POP_SIZE = 8
 BITS = 10
+POP_SIZE = 20
 GENERATIONS = 5
-CROSSOVER_RATE = 0.8
-MUTATION_RATE = 0.01
+PC = 0.8
+PM = 0.01
+X_MIN = 0
+X_MAX = 1
 
-# Generate random chromosome
-def create_chromosome():
-    return ''.join(random.choice('01') for _ in range(BITS))
 
-# Convert binary to normalized x
-def decode(ch):
-    return int(ch, 2) / 1023
+# Decode binary chromosome into x
+def decode(chromosome):
+    decimal = int(chromosome, 2)
+    return X_MIN + decimal * (X_MAX - X_MIN) / (2**BITS - 1)
+
 
 # Fitness function
-def fitness(ch):
-    x = decode(ch)
+def fitness(chromosome):
+    x = decode(chromosome)
     return x * math.sin(10 * math.pi * x) + 2
 
-# Roulette wheel selection
-def roulette_wheel_selection(population):
-    values = [fitness(ch) for ch in population]
-    total = sum(values)
+
+# Create initial population
+def create_population():
+    population = []
+    for i in range(POP_SIZE):
+        chromosome = ""
+        for j in range(BITS):
+            chromosome += str(random.randint(0, 1))
+        population.append(chromosome)
+    return population
+
+
+# Roulette Wheel Selection
+def roulette_selection(population, fitness_values):
+    total = sum(fitness_values)
     pick = random.uniform(0, total)
     current = 0
 
-    for ch, value in zip(population, values):
-        current += value
+    for chromosome, fit in zip(population, fitness_values):
+        current += fit
         if current >= pick:
-            return ch
+            return chromosome
 
     return population[-1]
 
-# Single-point crossover
-def crossover(p1, p2):
-    if random.random() < CROSSOVER_RATE:
+
+# Single-Point Crossover
+def crossover(parent1, parent2):
+    if random.random() < PC:
         point = random.randint(1, BITS - 1)
-        c1 = p1[:point] + p2[point:]
-        c2 = p2[:point] + p1[point:]
-        return c1, c2, point
 
-    return p1, p2, None
+        child1 = parent1[:point] + parent2[point:]
+        child2 = parent2[:point] + parent1[point:]
 
-# Mutation
-def mutation(ch):
-    result = ''
-    changes = []
+        return child1, child2, point
 
-    for i, bit in enumerate(ch):
-        if random.random() < MUTATION_RATE:
-            new_bit = '1' if bit == '0' else '0'
-            changes.append(f"{i + 1}:{bit}->{new_bit}")
-            result += new_bit
-        else:
-            result += bit
+    return parent1, parent2, None
 
-    return result, ', '.join(changes) if changes else 'None'
 
-# Initial population
-population = [create_chromosome() for _ in range(POP_SIZE)]
+# Bit-Flip Mutation
+def mutation(chromosome):
+    chromosome = list(chromosome)
+    flipped = []
+
+    for i in range(BITS):
+        if random.random() < PM:
+            chromosome[i] = (
+                '1' if chromosome[i] == '0' else '0'
+            )
+            flipped.append(i + 1)
+
+    return ''.join(chromosome), flipped
+
+
+# Initialize population
+population = create_population()
+
+best_chromosome = max(population, key=fitness)
+best_fitness = fitness(best_chromosome)
 
 print("INITIAL POPULATION")
-for i, ch in enumerate(population, 1):
-    print(f"{i}. {ch} | Fitness: {fitness(ch):.4f}")
+for ch in population:
+    print(ch, "Fitness:", round(fitness(ch), 4))
 
-# Run 5 generations
+
+# Run Genetic Algorithm
 for generation in range(1, GENERATIONS + 1):
-    new_population = []
-    results = []
-    child_no = 1
+
+    fitness_values = [fitness(ch) for ch in population]
+
+    current_best = max(population, key=fitness)
+    current_fitness = fitness(current_best)
+
+    if current_fitness > best_fitness:
+        best_chromosome = current_best
+        best_fitness = current_fitness
+
+    print("\n========== GENERATION", generation, "==========")
+    print("Best chromosome:", current_best)
+    print("Best x:", round(decode(current_best), 6))
+    print("Best fitness:", round(current_fitness, 6))
+
+    # Elitism: preserve best chromosome
+    new_population = [current_best]
+    pair = 1
 
     while len(new_population) < POP_SIZE:
-        # Selection
-        p1 = roulette_wheel_selection(population)
-        p2 = roulette_wheel_selection(population)
 
-        # Crossover
-        c1, c2, point = crossover(p1, p2)
+        # 1. ROULETTE WHEEL SELECTION
+        parent1 = roulette_selection(population, fitness_values)
+        parent2 = roulette_selection(population, fitness_values)
 
-        # Mutation
-        m1, changes1 = mutation(c1)
-        m2, changes2 = mutation(c2)
+        print("\nPair", pair, "- SELECTION")
+        print("Parent 1:", parent1)
+        print("Parent 2:", parent2)
 
-        children = [
-            (p1, p2, c1, m1, changes1),
-            (p1, p2, c2, m2, changes2)
-        ]
+        # 2. SINGLE-POINT CROSSOVER
+        child1, child2, point = crossover(parent1, parent2)
 
-        for parent1, parent2, cross_child, final_child, changes in children:
-            if len(new_population) >= POP_SIZE:
-                break
+        print("CROSSOVER")
+        if point is None:
+            print("No crossover")
+        else:
+            print("Crossover point:", point)
 
-            new_population.append(final_child)
+        print("Child 1 before mutation:", child1)
+        print("Child 2 before mutation:", child2)
 
-            crossover_result = (
-                f"Point {point}: {cross_child}"
-                if point is not None
-                else f"Skipped: {cross_child}"
-            )
+        # 3. MUTATION
+        child1, flips1 = mutation(child1)
+        child2, flips2 = mutation(child2)
 
-            results.append(
-                (child_no, parent1, parent2, crossover_result,
-                 changes, final_child, fitness(final_child))
-            )
-            child_no += 1
+        print("MUTATION")
+        print("Child 1:", child1, "Flipped bits:", flips1)
+        print("Child 2:", child2, "Flipped bits:", flips2)
+
+        # Add children to new population
+        new_population.append(child1)
+
+        if len(new_population) < POP_SIZE:
+            new_population.append(child2)
+
+        pair += 1
 
     population = new_population
-
-    print(f"\nGENERATION {generation}")
-    for no, p1, p2, cross, mut, sol, fit in results:
-        print(f"\nSolution {no}")
-        print(f"Selection: {p1}, {p2}")
-        print(f"Crossover: {cross}")
-        print(f"Mutation: {mut}")
-        print(f"Final Solution: {sol}")
-        print(f"Fitness: {fit:.4f}")
-
-    best = max(population, key=fitness)
-    print(f"\nBest: {best} | x = {decode(best):.6f} "
-          f"| Fitness = {fitness(best):.4f}")
-
-# Final best solution
-best = max(population, key=fitness)
-
-print("\nFINAL BEST SOLUTION")
-print("Chromosome:", best)
-print("Decimal value:", int(best, 2))
-print("x =", decode(best))
-print("Fitness =", fitness(best))
+print("\n========== FINAL RESULT ==========")
+print("Best chromosome:", best_chromosome)
+print("Best x:", decode(best_chromosome))
+print("Maximum fitness:", best_fitness)
