@@ -1,145 +1,132 @@
-import numpy as np
 import random
+import math
 
-def objective_function(x):
-    return x * np.sin(10 * np.pi * x) + 2
+POP_SIZE = 8
+BITS = 10
+GENERATIONS = 5
+CROSSOVER_RATE = 0.8
+MUTATION_RATE = 0.01
 
-def decode_chromosome(chromosome, x_min, x_max):
-    decimal = int("".join(map(str, chromosome)), 2)
-    x = x_min + (decimal / (2 ** len(chromosome) - 1)) * (x_max - x_min)
-    return decimal, x
+# Generate random chromosome
+def create_chromosome():
+    return ''.join(random.choice('01') for _ in range(BITS))
 
-def roulette_wheel_selection(population, fitness_values):
-    total_fitness = sum(fitness_values)
-    if total_fitness == 0:
-        return random.choice(population)
-    probabilities = [f / total_fitness for f in fitness_values]
-    cum_probs = np.cumsum(probabilities)
-    r = random.random()
-    idx = np.searchsorted(cum_probs, r)
-    idx = min(idx, len(population) - 1)
-    return population[idx]
+# Convert binary to normalized x
+def decode(ch):
+    return int(ch, 2) / 1023
 
-def single_point_crossover(parent1, parent2, pc):
-    if random.random() < pc:
-        point = random.randint(1, len(parent1) - 1)
-        child1 = parent1[:point] + parent2[point:]
-        child2 = parent2[:point] + parent1[point:]
-        return child1, child2
-    return parent1[:], parent2[:]
+# Fitness function
+def fitness(ch):
+    x = decode(ch)
+    return x * math.sin(10 * math.pi * x) + 2
 
-def bit_flip_mutation(chromosome, pm):
-    mutated = chromosome[:]
-    for i in range(len(mutated)):
-        if random.random() < pm:
-            mutated[i] = 1 - mutated[i]
-    return mutated
+# Roulette wheel selection
+def roulette_wheel_selection(population):
+    values = [fitness(ch) for ch in population]
+    total = sum(values)
+    pick = random.uniform(0, total)
+    current = 0
 
-print("\n================================")
-print("Genetic Algorithm Optimization")
-print("Maximize: f(x) = x * sin(10*pi*x) + 2")
-print("================================")
+    for ch, value in zip(population, values):
+        current += value
+        if current >= pick:
+            return ch
 
-pop_size = int(input("Enter population size: ").strip() or 20)
-chrom_len = int(input("Enter chromosome length (bits): ").strip() or 10)
-generations = int(input("Enter number of generations: ").strip() or 50)
-x_min = float(input("Enter lower bound of x: ").strip() or -1.0)
-x_max = float(input("Enter upper bound of x: ").strip() or 2.0)
-pc = float(input("Enter crossover probability: ").strip() or 0.8)
-pm = float(input("Enter mutation probability: ").strip() or 0.05)
+    return population[-1]
 
-population = []
-for _ in range(pop_size):
-    chromosome = [random.randint(0, 1) for _ in range(chrom_len)]
-    population.append(chromosome)
+# Single-point crossover
+def crossover(p1, p2):
+    if random.random() < CROSSOVER_RATE:
+        point = random.randint(1, BITS - 1)
+        c1 = p1[:point] + p2[point:]
+        c2 = p2[:point] + p1[point:]
+        return c1, c2, point
 
-decoded_info = [decode_chromosome(ind, x_min, x_max) for ind in population]
-x_values = [item[1] for item in decoded_info]
-fitness_values = [objective_function(x) for x in x_values]
+    return p1, p2, None
 
-total_fit = sum(fitness_values)
-probs = [f / total_fit for f in fitness_values] if total_fit > 0 else [1.0 / pop_size] * pop_size
-cum_probs = np.cumsum(probs)
+# Mutation
+def mutation(ch):
+    result = ''
+    changes = []
 
-print("\n--- Initial Population (Generation 1) ---")
-print("No.  Chromosome   Decimal     x       Fitness   Selection Prob  Cumulative Prob")
-print("-------------------------------------------------------------------------------")
-for i in range(pop_size):
-    chrom_str = "".join(map(str, population[i]))
-    dec_val, x_val = decoded_info[i]
-    fit_val = fitness_values[i]
-    prob_val = probs[i]
-    cum_val = cum_probs[i]
-    print(f"{i+1:2d}   {chrom_str}   {dec_val:4d}    {x_val:7.4f}   {fit_val:7.4f}      {prob_val:7.4f}          {cum_val:7.4f}")
+    for i, bit in enumerate(ch):
+        if random.random() < MUTATION_RATE:
+            new_bit = '1' if bit == '0' else '0'
+            changes.append(f"{i + 1}:{bit}->{new_bit}")
+            result += new_bit
+        else:
+            result += bit
 
-print("\n--- Generation Progress ---")
-print("Gen      Best Chromosome    Best x    Best Fitness    Avg Fitness")
-print("-----------------------------------------------------------------")
+    return result, ', '.join(changes) if changes else 'None'
 
-best_overall_chrom = None
-best_overall_dec = None
-best_overall_x = None
-best_overall_fitness = float("-inf")
+# Initial population
+population = [create_chromosome() for _ in range(POP_SIZE)]
 
-for gen in range(1, generations + 1):
-    decoded_info = [decode_chromosome(ind, x_min, x_max) for ind in population]
-    x_values = [item[1] for item in decoded_info]
-    fitness_values = [objective_function(x) for x in x_values]
+print("INITIAL POPULATION")
+for i, ch in enumerate(population, 1):
+    print(f"{i}. {ch} | Fitness: {fitness(ch):.4f}")
 
-    best_idx = int(np.argmax(fitness_values))
-    gen_best_fitness = fitness_values[best_idx]
-    gen_best_x = x_values[best_idx]
-    gen_best_dec = decoded_info[best_idx][0]
-    gen_best_chrom = population[best_idx][:]
-    avg_fitness = float(np.mean(fitness_values))
-
-    if gen_best_fitness > best_overall_fitness:
-        best_overall_fitness = gen_best_fitness
-        best_overall_x = gen_best_x
-        best_overall_dec = gen_best_dec
-        best_overall_chrom = gen_best_chrom[:]
-
-    best_chrom_str = "".join(map(str, gen_best_chrom))
-    print(f"{gen:3d}        {best_chrom_str}     {gen_best_x:7.4f}      {gen_best_fitness:7.4f}        {avg_fitness:7.4f}")
-
+# Run 5 generations
+for generation in range(1, GENERATIONS + 1):
     new_population = []
-    while len(new_population) < pop_size:
-        p1 = roulette_wheel_selection(population, fitness_values)
-        p2 = roulette_wheel_selection(population, fitness_values)
-        c1, c2 = single_point_crossover(p1, p2, pc)
-        c1 = bit_flip_mutation(c1, pm)
-        c2 = bit_flip_mutation(c2, pm)
-        new_population.append(c1)
-        if len(new_population) < pop_size:
-            new_population.append(c2)
+    results = []
+    child_no = 1
 
-    new_decoded = [decode_chromosome(ind, x_min, x_max) for ind in new_population]
-    new_fitness = [objective_function(item[1]) for item in new_decoded]
+    while len(new_population) < POP_SIZE:
+        # Selection
+        p1 = roulette_wheel_selection(population)
+        p2 = roulette_wheel_selection(population)
 
-    if gen_best_fitness > max(new_fitness):
-        worst_idx = int(np.argmin(new_fitness))
-        new_population[worst_idx] = gen_best_chrom[:]
+        # Crossover
+        c1, c2, point = crossover(p1, p2)
+
+        # Mutation
+        m1, changes1 = mutation(c1)
+        m2, changes2 = mutation(c2)
+
+        children = [
+            (p1, p2, c1, m1, changes1),
+            (p1, p2, c2, m2, changes2)
+        ]
+
+        for parent1, parent2, cross_child, final_child, changes in children:
+            if len(new_population) >= POP_SIZE:
+                break
+
+            new_population.append(final_child)
+
+            crossover_result = (
+                f"Point {point}: {cross_child}"
+                if point is not None
+                else f"Skipped: {cross_child}"
+            )
+
+            results.append(
+                (child_no, parent1, parent2, crossover_result,
+                 changes, final_child, fitness(final_child))
+            )
+            child_no += 1
 
     population = new_population
 
-final_decoded = [decode_chromosome(ind, x_min, x_max) for ind in population]
-final_fitness = [objective_function(item[1]) for item in final_decoded]
+    print(f"\nGENERATION {generation}")
+    for no, p1, p2, cross, mut, sol, fit in results:
+        print(f"\nSolution {no}")
+        print(f"Selection: {p1}, {p2}")
+        print(f"Crossover: {cross}")
+        print(f"Mutation: {mut}")
+        print(f"Final Solution: {sol}")
+        print(f"Fitness: {fit:.4f}")
 
-print(f"\n--- Final Population (Generation {generations}) ---")
-print("No.  Chromosome   Decimal     x       Fitness")
-print("------------------------------------------------")
-for i in range(pop_size):
-    chrom_str = "".join(map(str, population[i]))
-    dec_val, x_val = final_decoded[i]
-    fit_val = final_fitness[i]
-    print(f"{i+1:2d}   {chrom_str}   {dec_val:4d}    {x_val:7.4f}   {fit_val:7.4f}")
+    best = max(population, key=fitness)
+    print(f"\nBest: {best} | x = {decode(best):.6f} "
+          f"| Fitness = {fitness(best):.4f}")
 
-optimal_chrom_str = "".join(map(str, best_overall_chrom))
+# Final best solution
+best = max(population, key=fitness)
 
-print("\n================================")
-print("Optimization Completed")
-print("================================")
-print(f"Optimal Chromosome: {optimal_chrom_str}")
-print(f"Decimal Value: {best_overall_dec}")
-print(f"Optimal x: {best_overall_x:.6f}")
-print(f"Maximum f(x): {best_overall_fitness:.6f}")
+print("\nFINAL BEST SOLUTION")
+print("Chromosome:", best)
+print("Decimal value:", int(best, 2))
+print("x =", decode(best))
+print("Fitness =", fitness(best))
